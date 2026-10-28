@@ -1,8 +1,11 @@
-import {resizePlan, ptToMm, validatePreset} from './core.js?v=0.2.0';
+import {NativeBridge} from './native.js?v=0.4.0';
+import {resizePlan, ptToMm, validatePreset} from './core.js?v=0.4.0';
 
 const OUTER=['EdgeTop','EdgeBottom','EdgeLeft','EdgeRight'];
 const ALL=[...OUTER,'InsideHorizontal','InsideVertical'];
 export class ExcelAdapter {
+  constructor(){this.native=new NativeBridge(fn=>this.run(fn));}
+  async connectNative(){return this.native.connect();}
   supportsNativeSelection() {
     return !!globalThis.Office?.context?.requirements?.isSetSupported('ExcelApi','1.19');
   }
@@ -43,6 +46,7 @@ export class ExcelAdapter {
   }
   async apply(preset, options) {
     const p=validatePreset(preset),v=p.value;
+    if(p.kind==='shapeSize'&&this.native.ready)return this.native.request('resize',{width:v.width*72/25.4,height:v.height*72/25.4,mode:options.resizeMode});
     return this.run(async ctx=>{
       const shapes=await this.resolveShapes(ctx,p.kind,options),isShape=shapes!==null;
       if(isShape) {
@@ -52,11 +56,12 @@ export class ExcelAdapter {
         }
         if(p.kind==='shapeSize') {
           const plan=resizePlan(shapes,v,options.resizeMode);
+          if(plan.some(p=>p.left<0||p.top<0))throw new Error('中心を保つと図形がシートの左上からはみ出します。図形を少し右下へ移動してから実行してください。');
           // Direct width/height setters do not require changing lockAspectRatio.
-          plan.forEach(update=>{const s=shapes.find(s=>s.id===update.id);s.width=update.width;s.height=update.height;});
+          plan.forEach(update=>{const s=shapes.find(s=>s.id===update.id);s.width=update.width;s.height=update.height;s.left=update.left;s.top=update.top;});
           await ctx.sync();
-          shapes.forEach(s=>s.load('width,height'));await ctx.sync();
-          if(plan.some(p=>{const s=shapes.find(s=>s.id===p.id);return Math.abs(s.width-p.width)>0.75||Math.abs(s.height-p.height)>0.75;}))throw new Error('Excelが指定サイズを反映しませんでした。図形の保護や種類を確認してください。');
+          shapes.forEach(s=>s.load('width,height,left,top'));await ctx.sync();
+          if(plan.some(p=>{const s=shapes.find(s=>s.id===p.id);return ['width','height','left','top'].some(key=>Math.abs(s[key]-p[key])>0.75);} ))throw new Error('Excelが指定サイズ・中心位置を反映しませんでした。図形の保護や種類を確認してください。');
         } else shapes.forEach(s=>{
           if(p.kind==='font')s.textFrame.textRange.font.name=v.name;
           if(p.kind==='fontSize')s.textFrame.textRange.font.size=v.size;
@@ -94,10 +99,12 @@ export class ExcelAdapter {
       return {target:isShape?'shapes':'cells',names:isShape?shapes.map(s=>s.name):[]};
     });
   }
-  async arrange() {
-    throw new Error('現在のパネル方式では複数選択した図形全体を取得できないため、整列は未対応です。');
+  async arrange(mode) {
+    if(!this.native.ready)throw new Error('先に「図形連携を接続」を押してください。');
+    return this.native.request('arrange',{mode});
   }
   async capture(kind,options) {
+    if(kind==='shapeSize'&&this.native.ready){const r=await this.native.request('captureSize');return {width:+ptToMm(r.width).toFixed(2),height:+ptToMm(r.height).toFixed(2)};}
     return this.run(async ctx=>{
       const shapes=await this.resolveShapes(ctx,kind,options),isShape=shapes!==null;
       let source;

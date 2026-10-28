@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" xsi:type="TaskPaneApp">
   <Id>db8d5b64-7466-4db7-81ba-06e59e8cfa73</Id>
-  <Version>0.3.0.0</Version>
+  <Version>0.4.0.0</Version>
   <ProviderName>Excel Style Kit</ProviderName>
   <DefaultLocale>ja-JP</DefaultLocale>
   <DisplayName DefaultValue="Excel Style Kit"/>

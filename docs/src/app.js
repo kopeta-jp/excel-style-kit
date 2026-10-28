@@ -1,13 +1,13 @@
-import {SCHEMA, KINDS, defaults, uid, loadBundle, saveBundle, validatePreset, validateBundle, mergeBundle, describe, withoutPreset, LENGTH_UNITS, displayLength, storedLength} from './core.js?v=0.2.0';
-import {ExcelAdapter} from './office.js?v=0.2.0';
-import {DemoAdapter} from './demo.js?v=0.2.0';
-import {askConfirmation} from './confirmation.js?v=0.3.0';
+import {SCHEMA, KINDS, defaults, uid, loadBundle, saveBundle, validatePreset, validateBundle, mergeBundle, describe, withoutPreset, SHAPE_SIZE_UNIT, displayLength, storedLength} from './core.js?v=0.4.0';
+import {ExcelAdapter} from './office.js?v=0.4.0';
+import {DemoAdapter} from './demo.js?v=0.4.0';
+import {askConfirmation} from './confirmation.js?v=0.4.0';
 
 const $=id=>document.getElementById(id);
 const demo=new URLSearchParams(location.search).get('demo')==='1';
 let adapter=null, connected=false, busy=false, bundle, storedError=null;
-let editorKind=null, editingId=null, statusTimer, lengthUnit='cm';
-try{const saved=localStorage.getItem(`${SCHEMA}:length-unit`);if(Object.prototype.hasOwnProperty.call(LENGTH_UNITS,saved))lengthUnit=saved;}catch{}
+let editorKind=null, editingId=null, statusTimer;
+const lengthUnit=SHAPE_SIZE_UNIT;
 try{bundle=loadBundle(localStorage);}catch(error){bundle=defaults();storedError=error;}
 const TITLES={shapeSize:'図形サイズ',color:'カラー',font:'フォント',fontSize:'文字サイズ',grid:'行高・列幅',border:'罫線',numberFormat:'表示形式'};
 const FORM={
@@ -51,7 +51,7 @@ function openEditor(kind,p=null){
   editorKind=kind;editingId=p?.id||null;$('editor-title').textContent=`${TITLES[kind]}を${p?'編集':'登録'}`;
   $('preset-form').elements.presetName.value=p?.name||'';$('editor-fields').replaceChildren();$('editor-error').hidden=true;
   for(const [key,title,type,fallback,choices]of FORM[kind]){
-    const label=el('label','',kind==='shapeSize'?`${key==='width'?'幅':'高さ'}（${lengthUnit}）`:title);const field=el(type==='select'?'select':'input');field.name=key;
+    const label=el('label','',kind==='shapeSize'?`${key==='width'?'幅':'高さ'}（インチ）`:title);const field=el(type==='select'?'select':'input');field.name=key;
     if(type==='select')for(const [value,name]of Object.entries(choices)){const option=el('option','',name);option.value=value;field.append(option);}
     else {field.type=type;if(type==='number'){field.step='any';field.min=kind==='shapeSize'?String(displayLength(0.1,lengthUnit)):'0.1';if(kind==='shapeSize')field.max=String(displayLength(2000,lengthUnit));}else field.maxLength=key==='code'?255:100;field.required=kind!=='grid';}
     const raw=p?.value[key]??fallback;field.value=kind==='shapeSize'?Number(displayLength(raw,lengthUnit).toFixed(6)):raw;label.append(field);$('editor-fields').append(label);
@@ -97,8 +97,15 @@ $('import-file').addEventListener('change',()=>action(async()=>{
   }finally{$('import-file').value='';}
 }));
 $('restore-defaults').addEventListener('click',()=>action(async()=>{if(await ask('初期プリセットを追加・更新しますか？')){commit(mergeBundle(bundle,defaults()));status('初期プリセットを追加・更新しました。');}}));
-$('length-unit').value=lengthUnit;
-$('length-unit').addEventListener('change',()=>{const next=$('length-unit').value;try{localStorage.setItem(`${SCHEMA}:length-unit`,next);lengthUnit=next;renderPresets();}catch(error){$('length-unit').value=lengthUnit;status(error.message,true);}});
+$('connect-native').addEventListener('click',()=>action(async()=>{
+  requireConnection();if(demo)throw new Error('図形連携は実際のExcel内で接続してください。');
+  $('bridge-status').textContent='接続しています…';
+  try {const result=await adapter.connectNative();$('native-support').textContent='Excelで選択した1個または複数の図形に適用し、各図形の中心位置を保ちます。';$('bridge-status').textContent=`接続済み v${result.version}：サイズ登録の反映・整列はExcelの複数選択に適用されます。`;status('図形連携に接続しました。');}
+  catch(error){$('bridge-status').textContent='未接続：補助アドインを確認して、再接続してください。';throw error;}
+}));
+document.querySelectorAll('[data-arrange]').forEach(button=>button.addEventListener('click',()=>action(async()=>{
+  requireConnection();status('処理中です。図形の選択を変えずにお待ちください。');const result=await adapter.arrange(button.dataset.arrange);status(`${result.count||result.names?.length||0}個の図形を変更しました。`);
+})));
 renderPresets();
 
 if(storedError)status('保存済み設定を読み込めませんでした。元のデータはまだ保持しています。JSONのバックアップを確認してから登録してください。',true);

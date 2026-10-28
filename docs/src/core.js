@@ -4,6 +4,8 @@ export const VERSION = 1;
 export const KINDS = ['shapeSize', 'color', 'font', 'fontSize', 'grid', 'border', 'numberFormat'];
 export const mmToPt = value => value * 72 / 25.4;
 export const ptToMm = value => value * 25.4 / 72;
+// Verified against the user's Excel Format Shape pane (2.97", 2.63").
+export const SHAPE_SIZE_UNIT = 'in';
 export const LENGTH_UNITS = {cm:10, mm:1, in:25.4, pt:25.4/72};
 export function displayLength(mm, unit='cm') {
   choice(unit,Object.keys(LENGTH_UNITS),'図形サイズの単位');
@@ -113,10 +115,13 @@ export function resizePlan(shapes, preset, mode) {
   return shapes.map(s => {
     if (!(s.width > 0 && s.height > 0)) throw new Error('幅・高さが0の図形はサイズ変更できません。');
     const w=mmToPt(width), h=mmToPt(height);
-    if (mode==='width') return {id:s.id,width:w,height:s.height};
-    if (mode==='height') return {id:s.id,width:s.width,height:h};
-    if (mode==='fit') {const k=Math.min(w/s.width,h/s.height);return {id:s.id,width:s.width*k,height:s.height*k};}
-    return {id:s.id,width:w,height:h};
+    if(!Number.isFinite(s.left)||!Number.isFinite(s.top))throw new Error('図形の位置を読み取れませんでした。');
+    let nextWidth=w,nextHeight=h;
+    if(mode==='width')nextHeight=s.height;
+    if(mode==='height')nextWidth=s.width;
+    if(mode==='fit'){const k=Math.min(w/s.width,h/s.height);nextWidth=s.width*k;nextHeight=s.height*k;}
+    // Resize about each shape's own center, independently of other shapes.
+    return {id:s.id,width:nextWidth,height:nextHeight,left:s.left+(s.width-nextWidth)/2,top:s.top+(s.height-nextHeight)/2};
   });
 }
 export function geometryPlan(shapes, action) {
@@ -142,10 +147,10 @@ export function geometryPlan(shapes, action) {
     top:{top:t},middle:{top:(t+b-s.height)/2},bottom:{top:b-s.height}
   }[action])}));
 }
-export function describe(p,unit='cm') {
+export function describe(p,unit=SHAPE_SIZE_UNIT) {
   const v=p.value;
   switch(p.kind){
-    case 'shapeSize':return `${displayLength(v.width,unit).toFixed(unit==='in'?3:2)} × ${displayLength(v.height,unit).toFixed(unit==='in'?3:2)} ${unit}`;
+    case 'shapeSize':return `${displayLength(v.width,unit).toFixed(2)} × ${displayLength(v.height,unit).toFixed(2)} ${unit==='in'?'インチ':unit}`;
     case 'color':return v.color;
     case 'font':return v.name;
     case 'fontSize':return `${v.size} pt`;
