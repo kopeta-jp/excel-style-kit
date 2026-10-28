@@ -1,7 +1,7 @@
-import {SCHEMA, KINDS, defaults, uid, loadBundle, saveBundle, validatePreset, validateBundle, mergeBundle, describe, withoutPreset, SHAPE_SIZE_UNIT, displayLength, storedLength} from './core.js?v=0.4.0';
-import {ExcelAdapter} from './office.js?v=0.4.0';
-import {DemoAdapter} from './demo.js?v=0.4.0';
-import {askConfirmation} from './confirmation.js?v=0.4.0';
+import {SCHEMA, KINDS, defaults, uid, loadBundle, saveBundle, validatePreset, validateBundle, mergeBundle, describe, withoutPreset, movePreset, SHAPE_SIZE_UNIT, displayLength, storedLength} from './core.js?v=0.4.1';
+import {ExcelAdapter} from './office.js?v=0.4.1';
+import {DemoAdapter} from './demo.js?v=0.4.1';
+import {askConfirmation} from './confirmation.js?v=0.4.1';
 
 const $=id=>document.getElementById(id);
 const demo=new URLSearchParams(location.search).get('demo')==='1';
@@ -25,7 +25,7 @@ async function action(fn){
   if(busy)return;
   busy=true;document.body.classList.add('busy');document.querySelectorAll('button').forEach(b=>b.disabled=true);
   try{await fn();}catch(error){status(`${error.message||'操作に失敗しました。'}${error.code?` (${error.code})`:''}`,true);}
-  finally{busy=false;document.body.classList.remove('busy');document.querySelectorAll('button').forEach(b=>b.disabled=false);}
+  finally{busy=false;document.body.classList.remove('busy');document.querySelectorAll('button').forEach(b=>b.disabled=b.dataset.boundary==='true');}
 }
 function requireConnection(){if(!connected)throw new Error('Excelからアドインを開いてください。ブラウザーでの見た目確認は ?demo=1 を指定してください。');}
 function options(){return {target:$('style-target').value,colorRole:$('color-role').value,resizeMode:$('resize-mode').value,shapes:{mode:'native'}};}
@@ -36,7 +36,7 @@ function renderPresets(){
     const container=$(`list-${kind}`);container.replaceChildren();
     const presets=bundle.presets.filter(p=>p.kind===kind);
     if(!presets.length)container.append(el('div','empty','「＋ 登録」から追加してください。'));
-    for(const p of presets){
+    for(const [index,p] of presets.entries()){
       const row=el('div','preset'), apply=el('button','apply-preset');apply.type='button';apply.title=`${p.name}を適用`;
       if(kind==='color'){const dot=el('span','color-dot');dot.style.backgroundColor=p.value.color;apply.append(dot);}
       const label=el('span','preset-text');label.append(el('span','preset-name',p.name),el('span','preset-desc',describe(p,lengthUnit)));apply.append(label);
@@ -44,6 +44,22 @@ function renderPresets(){
       const edit=el('button','preset-menu','編集');edit.type='button';edit.title=`${p.name}を編集・削除`;edit.setAttribute('aria-label',edit.title);edit.addEventListener('click',()=>openEditor(kind,p));
       const remove=el('button','preset-delete','削除');remove.type='button';remove.title=`${p.name}を削除`;remove.setAttribute('aria-label',remove.title);remove.addEventListener('click',()=>{openEditor(kind,p);removePreset(p);});
       const actions=el('span','preset-actions');actions.append(edit,remove);row.append(apply,actions);container.append(row);
+      if(kind==='shapeSize'){
+        const reorder=el('span','preset-order');reorder.setAttribute('role','group');reorder.setAttribute('aria-label',`${p.name}の表示順`);
+        for(const [direction,symbol,label] of [[-1,'↑','上へ'],[1,'↓','下へ']]){
+          const button=el('button','preset-move',symbol);button.type='button';button.title=`${p.name}を${label}移動`;
+          button.setAttribute('aria-label',button.title);button.setAttribute('data-move',p.id);button.setAttribute('data-direction',String(direction));
+          button.disabled=direction===-1?index===0:index===presets.length-1;button.setAttribute('data-boundary',String(button.disabled));
+          button.addEventListener('click',()=>action(async()=>{
+            commit(movePreset(bundle,p.id,direction));
+            const buttons=Array.from(document.querySelectorAll('[data-move]')).filter(b=>b.dataset.move===p.id);
+            (buttons.find(b=>b.dataset.direction===String(direction)&&!b.disabled)||buttons.find(b=>!b.disabled))?.focus();
+            status(`「${p.name}」を${label}移動しました。`);
+          }));
+          reorder.append(button);
+        }
+        row.append(reorder);
+      }
     }
   }
 }

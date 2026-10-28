@@ -3,3 +3,5 @@
 .preset-actions{display:flex;flex-direction:column;justify-content:center;gap:3px;flex-shrink:0}.preset-actions button{font-size:10px;padding:5px;min-width:36px;position:static;height:auto;border:0;background:transparent}.preset-delete{color:#a4493e}.compact .preset{flex-direction:column}.compact .apply-preset{padding:10px 4px}.compact .preset-actions{flex-direction:row}.compact .preset-menu{position:static;height:auto;padding:5px}.confirmation{padding:14px;border:1px solid #c8d7c8;background:#f2f7ef;border-radius:10px;margin:12px 0}.confirmation p{color:#253a2b}.confirmation-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}.confirmation-host>.confirmation{position:fixed;bottom:12px;left:12px;right:12px;z-index:10;box-shadow:0 8px 40px #0003}
 
 .arrange-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.arrange-buttons button{min-height:38px}
+
+.preset-order{order:-1;display:flex;flex-direction:column;justify-content:center;gap:4px;flex-shrink:0}.preset-move{padding:5px;min-width:28px;min-height:28px;font-size:16px;line-height:1}.preset-move:disabled{cursor:default;opacity:.3}

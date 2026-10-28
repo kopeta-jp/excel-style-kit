@@ -88,6 +88,16 @@ export function withoutPreset(bundle,id) {
   if(!valid.presets.some(p=>p.id===id))throw new Error('削除するプリセットが見つかりません。');
   return {...valid,presets:valid.presets.filter(p=>p.id!==id)};
 }
+export function movePreset(bundle,id,direction) {
+  if(direction!==-1&&direction!==1)throw new Error('並び替えの方向が不正です。');
+  const valid=validateBundle(bundle),index=valid.presets.findIndex(p=>p.id===id);
+  if(index<0)throw new Error('並び替えるプリセットが見つかりません。');
+  const kind=valid.presets[index].kind;
+  let next=index+direction;
+  while(next>=0&&next<valid.presets.length&&valid.presets[next].kind!==kind)next+=direction;
+  if(next>=0&&next<valid.presets.length)[valid.presets[index],valid.presets[next]]=[valid.presets[next],valid.presets[index]];
+  return valid;
+}
 export function loadBundle(storage) {
   const raw = storage.getItem(SCHEMA);
   return raw === null ? defaults() : validateBundle(JSON.parse(raw));

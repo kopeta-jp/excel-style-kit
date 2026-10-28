@@ -1,5 +1,5 @@
 // Explicit opt-in simulation; never a fallback for failed Excel operations.
-import {defaults,resizePlan,ptToMm} from './core.js?v=0.4.0';
+import {defaults,resizePlan,ptToMm} from './core.js?v=0.4.1';
 export class DemoAdapter {
   constructor(){this.shape={id:'demo',name:'サンプル図形',left:100,top:100,width:110,height:36};}
   supportsNativeSelection(){return true;}

@@ -1,5 +1,5 @@
-import {NativeBridge} from './native.js?v=0.4.0';
-import {resizePlan, ptToMm, validatePreset} from './core.js?v=0.4.0';
+import {NativeBridge} from './native.js?v=0.4.1';
+import {resizePlan, ptToMm, validatePreset} from './core.js?v=0.4.1';
 
 const OUTER=['EdgeTop','EdgeBottom','EdgeLeft','EdgeRight'];
 const ALL=[...OUTER,'InsideHorizontal','InsideVertical'];
