@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" xsi:type="TaskPaneApp">
+  <Id>db8d5b64-7466-4db7-81ba-06e59e8cfa73</Id>
+  <Version>0.1.1.0</Version>
+  <ProviderName>Excel Style Kit</ProviderName>
+  <DefaultLocale>ja-JP</DefaultLocale>
+  <DisplayName DefaultValue="Excel Style Kit"/>
+  <Description DefaultValue="図形・カラー・フォント・行高・列幅・罫線・表示形式のプリセットツール"/>
+  <IconUrl DefaultValue="https://kopeta-jp.github.io/excel-style-kit/assets/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://kopeta-jp.github.io/excel-style-kit/assets/icon-80.png"/>
+  <SupportUrl DefaultValue="https://kopeta-jp.github.io/excel-style-kit/help.html"/>
+  <AppDomains><AppDomain>https://kopeta-jp.github.io</AppDomain></AppDomains>
+  <Hosts><Host Name="Workbook"/></Hosts>
+  <Requirements><Sets DefaultMinVersion="1.9"><Set Name="ExcelApi" MinVersion="1.9"/></Sets></Requirements>
+  <DefaultSettings><SourceLocation DefaultValue="https://kopeta-jp.github.io/excel-style-kit/taskpane.html"/></DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts><Host xsi:type="Workbook"><DesktopFormFactor>
+      <GetStarted><Title resid="GetStarted.Title"/><Description resid="GetStarted.Description"/><LearnMoreUrl resid="Help.Url"/></GetStarted>
+      <FunctionFile resid="Commands.Url"/>
+      <ExtensionPoint xsi:type="PrimaryCommandSurface"><OfficeTab id="TabHome"><Group id="StyleKit.Group"><Label resid="Group.Label"/>
+        <Icon><bt:Image size="16" resid="Icon.16"/><bt:Image size="32" resid="Icon.32"/><bt:Image size="80" resid="Icon.80"/></Icon>
+        <Control xsi:type="Button" id="StyleKit.Open"><Label resid="Button.Label"/>
+          <Supertip><Title resid="Button.Label"/><Description resid="Button.Description"/></Supertip>
+          <Icon><bt:Image size="16" resid="Icon.16"/><bt:Image size="32" resid="Icon.32"/><bt:Image size="80" resid="Icon.80"/></Icon>
+          <Action xsi:type="ShowTaskpane"><TaskpaneId>StyleKit.Taskpane</TaskpaneId><SourceLocation resid="Taskpane.Url"/></Action>
+        </Control>
+      </Group></OfficeTab></ExtensionPoint>
+    </DesktopFormFactor></Host></Hosts>
+    <Resources>
+      <bt:Images><bt:Image id="Icon.16" DefaultValue="https://kopeta-jp.github.io/excel-style-kit/assets/icon-16.png"/><bt:Image id="Icon.32" DefaultValue="https://kopeta-jp.github.io/excel-style-kit/assets/icon-32.png"/><bt:Image id="Icon.80" DefaultValue="https://kopeta-jp.github.io/excel-style-kit/assets/icon-80.png"/></bt:Images>
+      <bt:Urls><bt:Url id="Commands.Url" DefaultValue="https://kopeta-jp.github.io/excel-style-kit/commands.html"/><bt:Url id="Taskpane.Url" DefaultValue="https://kopeta-jp.github.io/excel-style-kit/taskpane.html"/><bt:Url id="Help.Url" DefaultValue="https://kopeta-jp.github.io/excel-style-kit/help.html"/></bt:Urls>
+      <bt:ShortStrings><bt:String id="GetStarted.Title" DefaultValue="Excel Style Kit"/><bt:String id="Group.Label" DefaultValue="Style Kit"/><bt:String id="Button.Label" DefaultValue="Style Kitを開く"/></bt:ShortStrings>
+      <bt:LongStrings><bt:String id="GetStarted.Description" DefaultValue="ホームタブからStyle Kitを開き、いつもの書式を登録して適用できます。"/><bt:String id="Button.Description" DefaultValue="図形・セルの書式プリセットを登録・適用します。"/></bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>
