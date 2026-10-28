@@ -1,8 +1,11 @@
-import {geometryPlan, resizePlan, ptToMm, validatePreset} from './core.js';
+import {geometryPlan, resizePlan, ptToMm, validatePreset} from './core.js?v=0.2.0';
 
 const OUTER=['EdgeTop','EdgeBottom','EdgeLeft','EdgeRight'];
 const ALL=[...OUTER,'InsideHorizontal','InsideVertical'];
 export class ExcelAdapter {
+  supportsNativeSelection() {
+    return !!globalThis.Office?.context?.requirements?.isSetSupported('ExcelApi','1.19');
+  }
   async run(fn) {
     if(!globalThis.Excel || !globalThis.Office?.context) throw new Error('Excel内からアドインを開いてください。');
     return Excel.run(fn);
@@ -16,12 +19,38 @@ export class ExcelAdapter {
     });
   }
   async shapes(ctx, target) {
-    if(!target?.ids?.length) throw new Error('「図形」タブの一覧で対象をチェックしてください。');
+    // Native selection is resolved on every action, never from a cached shape ID.
+    if(target?.mode!=='list') {
+      const shape=await this.activeShape(ctx);
+      if(!shape) throw new Error('Excel上で図形を1個選択してから実行してください。複数選択した図形全体の取得には対応していません。');
+      return [shape];
+    }
+    if(!target?.ids?.length) throw new Error('補助一覧で対象をチェックしてください。');
     const sheet=ctx.workbook.worksheets.getActiveWorksheet();sheet.load('id');await ctx.sync();
     if(sheet.id!==target.sheetId) throw new Error('シートが変わりました。図形一覧を更新して選び直してください。');
     const shapes=target.ids.map(id=>sheet.shapes.getItem(id));
     shapes.forEach(s=>s.load('id,name,type,left,top,width,height,lockAspectRatio'));await ctx.sync();
     return shapes;
+  }
+  async activeShape(ctx) {
+    if(!this.supportsNativeSelection() || typeof ctx.workbook.getActiveShapeOrNullObject!=='function') throw new Error('Excel上の図形選択を使うにはExcelApi 1.19対応版が必要です。Excelを更新するか、セル指定・補助一覧を使用してください。');
+    const shape=ctx.workbook.getActiveShapeOrNullObject();
+    // Do not request shape properties until null-object status has been resolved.
+    await ctx.sync();
+    if(shape.isNullObject)return null;
+    shape.load('id,name,type,left,top,width,height,lockAspectRatio');await ctx.sync();
+    return shape;
+  }
+  async resolveShapes(ctx,kind,options={}) {
+    if(kind==='shapeSize')return this.shapes(ctx,options.shapes);
+    if(!['color','font','fontSize'].includes(kind))return null;
+    if(options.target==='auto') {
+      const shape=await this.activeShape(ctx);
+      return shape?[shape]:null;
+    }
+    if(options.target==='shapes')return this.shapes(ctx,{mode:'native'});
+    if(options.target==='listedShapes')return this.shapes(ctx,{...options.shapes,mode:'list'});
+    return null;
   }
   async ranges(ctx) {
     const selected=ctx.workbook.getSelectedRanges();selected.areas.load('items');await ctx.sync();
@@ -31,9 +60,8 @@ export class ExcelAdapter {
   async apply(preset, options) {
     const p=validatePreset(preset),v=p.value;
     return this.run(async ctx=>{
-      const isShape=p.kind==='shapeSize'||(['color','font','fontSize'].includes(p.kind)&&options.target==='shapes');
+      const shapes=await this.resolveShapes(ctx,p.kind,options),isShape=shapes!==null;
       if(isShape) {
-        const shapes=await this.shapes(ctx,options.shapes);
         // Validate all before queueing writes; images/groups have no editable text here.
         if(['font','fontSize'].includes(p.kind)||(p.kind==='color'&&options.colorRole==='font')) {
           if(shapes.some(s=>!['GeometricShape','TextBox'].includes(s.type))) throw new Error('文字書式は通常の図形・テキストボックスのみ対応しています。画像・グループを対象から外してください。');
@@ -75,9 +103,11 @@ export class ExcelAdapter {
         });
       }
       await ctx.sync();
+      return {target:isShape?'shapes':'cells',names:isShape?shapes.map(s=>s.name):[]};
     });
   }
   async arrange(action,target) {
+    if(target?.mode!=='list')throw new Error('Excel上の複数図形選択は取得できないため、整列・サイズ統一は補助一覧で対象を指定してください。');
     return this.run(async ctx=>{
       const shapes=await this.shapes(ctx,target),plan=geometryPlan(shapes,action);
       plan.forEach(update=>{const s=shapes.find(s=>s.id===update.id),locked=s.lockAspectRatio;const resizing='width'in update||'height'in update;if(resizing)s.lockAspectRatio=false;for(const k of ['left','top','width','height'])if(k in update)s[k]=update[k];if(resizing)s.lockAspectRatio=locked;});
@@ -86,11 +116,10 @@ export class ExcelAdapter {
   }
   async capture(kind,options) {
     return this.run(async ctx=>{
-      const isShape=kind==='shapeSize'||(['color','font','fontSize'].includes(kind)&&options.target==='shapes');
+      const shapes=await this.resolveShapes(ctx,kind,options),isShape=shapes!==null;
       let source;
       if(isShape) {
-        const shapes=await this.shapes(ctx,options.shapes);
-        if(shapes.length!==1)throw new Error('登録元の図形を1個だけチェックしてください。');
+        if(shapes.length!==1)throw new Error('登録元の図形を1個だけ指定してください。');
         source=shapes[0];
         if(kind==='shapeSize')return {width:+ptToMm(source.width).toFixed(2),height:+ptToMm(source.height).toFixed(2)};
         if((kind!=='color'||options.colorRole==='font')&&!['GeometricShape','TextBox'].includes(source.type)) throw new Error('通常の図形またはテキストボックスを選んでください。');

@@ -1,6 +1,6 @@
-import {SCHEMA, KINDS, defaults, uid, loadBundle, saveBundle, validatePreset, validateBundle, mergeBundle, describe} from './core.js';
-import {ExcelAdapter} from './office.js';
-import {DemoAdapter} from './demo.js';
+import {SCHEMA, KINDS, defaults, uid, loadBundle, saveBundle, validatePreset, validateBundle, mergeBundle, describe} from './core.js?v=0.2.0';
+import {ExcelAdapter} from './office.js?v=0.2.0';
+import {DemoAdapter} from './demo.js?v=0.2.0';
 
 const $=id=>document.getElementById(id);
 const demo=new URLSearchParams(location.search).get('demo')==='1';
@@ -23,10 +23,10 @@ async function action(fn){
   if(busy)return;
   busy=true;document.body.classList.add('busy');document.querySelectorAll('button').forEach(b=>b.disabled=true);
   try{await fn();}catch(error){status(`${error.message||'操作に失敗しました。'}${error.code?` (${error.code})`:''}`,true);}
-  finally{busy=false;document.body.classList.remove('busy');document.querySelectorAll('button').forEach(b=>b.disabled=false);}
+  finally{busy=false;document.body.classList.remove('busy');document.querySelectorAll('button').forEach(b=>b.disabled=false);updateSelectionMode();}
 }
 function requireConnection(){if(!connected)throw new Error('Excelからアドインを開いてください。ブラウザーでの見た目確認は ?demo=1 を指定してください。');}
-function options(){return {target:$('style-target').value,colorRole:$('color-role').value,resizeMode:$('resize-mode').value,shapes:{sheetId:shapeState.sheetId,ids:[...shapeState.ids]}};}
+function options(){return {target:$('style-target').value,colorRole:$('color-role').value,resizeMode:$('resize-mode').value,shapes:{mode:$('shape-selection-mode').value,sheetId:shapeState.sheetId,ids:[...shapeState.ids]}};}
 function commit(next){bundle=saveBundle(localStorage,next);renderPresets();}
 function renderPresets(){
   for(const kind of KINDS){
@@ -37,7 +37,7 @@ function renderPresets(){
       const row=el('div','preset'), apply=el('button','apply-preset');apply.type='button';apply.title=`${p.name}を適用`;
       if(kind==='color'){const dot=el('span','color-dot');dot.style.backgroundColor=p.value.color;apply.append(dot);}
       const label=el('span','preset-text');label.append(el('span','preset-name',p.name),el('span','preset-desc',describe(p)));apply.append(label);
-      apply.addEventListener('click',()=>action(async()=>{requireConnection();await adapter.apply(p,options());status(`${demo?'デモ：':''}「${p.name}」を適用しました。`);}));
+      apply.addEventListener('click',()=>action(async()=>{requireConnection();const result=await adapter.apply(p,options());const target=result?.target==='shapes'?`図形「${result.names.join('、')}」`:'選択セル';status(`${demo?'デモ：':''}${target}に「${p.name}」を適用しました。`);}));
       const edit=el('button','preset-menu','⋯');edit.type='button';edit.title=`${p.name}を編集・削除`;edit.setAttribute('aria-label',edit.title);edit.addEventListener('click',()=>openEditor(kind,p));
       row.append(apply,edit);container.append(row);
     }
@@ -92,6 +92,12 @@ async function refreshShapes(keep=false){
 }
 $('refresh-shapes').addEventListener('click',()=>action(()=>refreshShapes(true)));
 $('clear-shapes').addEventListener('click',()=>{shapeState.ids=[];renderShapes();});
+function updateSelectionMode(){
+  const listed=$('shape-selection-mode').value==='list';
+  $('list-targets').hidden=!listed;
+  document.querySelectorAll('[data-arrange]').forEach(b=>{b.disabled=!listed;});
+}
+$('shape-selection-mode').addEventListener('change',updateSelectionMode);
 document.querySelectorAll('[data-arrange]').forEach(button=>button.addEventListener('click',()=>action(async()=>{
   requireConnection();await adapter.arrange(button.dataset.arrange,options().shapes);await refreshShapes(true);status(`${demo?'デモ：':''}図形を整えました。`);
 })));
@@ -112,6 +118,7 @@ $('import-file').addEventListener('change',()=>action(async()=>{
 }));
 $('restore-defaults').addEventListener('click',()=>action(async()=>{if(confirm('初期プリセットを追加・更新しますか？')){commit(mergeBundle(bundle,defaults()));status('初期プリセットを追加・更新しました。');}}));
 renderPresets();
+updateSelectionMode();
 if(storedError)status('保存済み設定を読み込めませんでした。元のデータはまだ保持しています。JSONのバックアップを確認してから登録してください。',true);
 function connect(){
   if(demo){adapter=new DemoAdapter();connected=true;$('connection').textContent='画面デモ ／ Excelのデータは変更しません';$('connection').classList.add('preview');$('diagnostics').textContent='デモモード。図形はサンプル、セルの操作はシミュレーションです。';return;}
@@ -120,7 +127,9 @@ function connect(){
     if(info.host!==Office.HostType.Excel){$('connection').textContent='Excel内から開いてください';return;}
     const supported=Office.context.requirements.isSetSupported('ExcelApi','1.9');
     connected=supported;adapter=new ExcelAdapter();$('connection').textContent=supported?'● Excelに接続済み':'ExcelApi 1.9に対応したExcelへ更新してください';
-    $('diagnostics').textContent=`Excel / ${info.platform} / ExcelApi 1.9: ${supported?'対応':'未対応'} / 図形はパネルのチェックリストから選択`;
+    const native=supported&&adapter.supportsNativeSelection();
+    $('diagnostics').textContent=`Excel / ${info.platform} / ExcelApi 1.9: ${supported?'対応':'未対応'} / Excel上の図形1個の取得: ${native?'対応':'未対応（ExcelApi 1.19が必要）'}`;
+    if(!native){$('style-target').value='cells';$('native-support').textContent='このExcelは図形の直接選択に未対応です。ExcelApi 1.19対応版に更新してください。';}
   }).catch(error=>status(error.message,true));
   setTimeout(()=>{if(!connected){$('connection').textContent='Excel未接続 ／ Excel内から開いてください';$('connection').classList.add('preview');}},6000);
 }
