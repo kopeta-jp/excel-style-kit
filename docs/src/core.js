@@ -4,6 +4,16 @@ export const VERSION = 1;
 export const KINDS = ['shapeSize', 'color', 'font', 'fontSize', 'grid', 'border', 'numberFormat'];
 export const mmToPt = value => value * 72 / 25.4;
 export const ptToMm = value => value * 25.4 / 72;
+export const LENGTH_UNITS = {cm:10, mm:1, in:25.4, pt:25.4/72};
+export function displayLength(mm, unit='cm') {
+  choice(unit,Object.keys(LENGTH_UNITS),'図形サイズの単位');
+  return mm/LENGTH_UNITS[unit];
+}
+export function storedLength(value, unit='cm') {
+  choice(unit,Object.keys(LENGTH_UNITS),'図形サイズの単位');
+  if(!Number.isFinite(value))throw new Error('図形サイズは数値で入力してください。');
+  return value*LENGTH_UNITS[unit];
+}
 export function uid() {
   return globalThis.crypto?.randomUUID?.() || `p-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
@@ -71,6 +81,11 @@ export function saveBundle(storage, bundle) {
   storage.setItem(SCHEMA, JSON.stringify(valid));
   return valid;
 }
+export function withoutPreset(bundle,id) {
+  const valid=validateBundle(bundle);
+  if(!valid.presets.some(p=>p.id===id))throw new Error('削除するプリセットが見つかりません。');
+  return {...valid,presets:valid.presets.filter(p=>p.id!==id)};
+}
 export function loadBundle(storage) {
   const raw = storage.getItem(SCHEMA);
   return raw === null ? defaults() : validateBundle(JSON.parse(raw));
@@ -127,10 +142,10 @@ export function geometryPlan(shapes, action) {
     top:{top:t},middle:{top:(t+b-s.height)/2},bottom:{top:b-s.height}
   }[action])}));
 }
-export function describe(p) {
+export function describe(p,unit='cm') {
   const v=p.value;
   switch(p.kind){
-    case 'shapeSize':return `${v.width.toFixed(1)} × ${v.height.toFixed(1)} mm`;
+    case 'shapeSize':return `${displayLength(v.width,unit).toFixed(unit==='in'?3:2)} × ${displayLength(v.height,unit).toFixed(unit==='in'?3:2)} ${unit}`;
     case 'color':return v.color;
     case 'font':return v.name;
     case 'fontSize':return `${v.size} pt`;

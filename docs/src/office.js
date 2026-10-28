@@ -1,4 +1,4 @@
-import {geometryPlan, resizePlan, ptToMm, validatePreset} from './core.js?v=0.2.0';
+import {resizePlan, ptToMm, validatePreset} from './core.js?v=0.2.0';
 
 const OUTER=['EdgeTop','EdgeBottom','EdgeLeft','EdgeRight'];
 const ALL=[...OUTER,'InsideHorizontal','InsideVertical'];
@@ -10,32 +10,16 @@ export class ExcelAdapter {
     if(!globalThis.Excel || !globalThis.Office?.context) throw new Error('Excel内からアドインを開いてください。');
     return Excel.run(fn);
   }
-  async listShapes() {
-    return this.run(async ctx=>{
-      const sheet=ctx.workbook.worksheets.getActiveWorksheet();sheet.load('id,name');
-      const collection=sheet.shapes;collection.load('items/id,items/name,items/type,items/left,items/top,items/width,items/height');
-      await ctx.sync();
-      return {sheetId:sheet.id,sheetName:sheet.name,shapes:collection.items.map(s=>({id:s.id,name:s.name,type:s.type,left:s.left,top:s.top,width:s.width,height:s.height}))};
-    });
-  }
-  async shapes(ctx, target) {
-    // Native selection is resolved on every action, never from a cached shape ID.
-    if(target?.mode!=='list') {
-      const shape=await this.activeShape(ctx);
-      if(!shape) throw new Error('Excel上で図形を1個選択してから実行してください。複数選択した図形全体の取得には対応していません。');
-      return [shape];
-    }
-    if(!target?.ids?.length) throw new Error('補助一覧で対象をチェックしてください。');
-    const sheet=ctx.workbook.worksheets.getActiveWorksheet();sheet.load('id');await ctx.sync();
-    if(sheet.id!==target.sheetId) throw new Error('シートが変わりました。図形一覧を更新して選び直してください。');
-    const shapes=target.ids.map(id=>sheet.shapes.getItem(id));
-    shapes.forEach(s=>s.load('id,name,type,left,top,width,height,lockAspectRatio'));await ctx.sync();
-    return shapes;
+  async shapes(ctx) {
+    const shape=await this.activeShape(ctx);
+    if(!shape)throw new Error('Excel上で図形を1個選択してから実行してください。');
+    return [shape];
   }
   async activeShape(ctx) {
-    if(!this.supportsNativeSelection() || typeof ctx.workbook.getActiveShapeOrNullObject!=='function') throw new Error('Excel上の図形選択を使うにはExcelApi 1.19対応版が必要です。Excelを更新するか、セル指定・補助一覧を使用してください。');
+    if(!this.supportsNativeSelection() || typeof ctx.workbook.getActiveShapeOrNullObject!=='function') throw new Error('Excel上の図形選択を使うにはExcelApi 1.19対応版が必要です。Excelを更新してください。セルの操作は引き続き利用できます。');
     const shape=ctx.workbook.getActiveShapeOrNullObject();
     // Do not request shape properties until null-object status has been resolved.
+    shape.load('isNullObject');
     await ctx.sync();
     if(shape.isNullObject)return null;
     shape.load('id,name,type,left,top,width,height,lockAspectRatio');await ctx.sync();
@@ -49,7 +33,7 @@ export class ExcelAdapter {
       return shape?[shape]:null;
     }
     if(options.target==='shapes')return this.shapes(ctx,{mode:'native'});
-    if(options.target==='listedShapes')return this.shapes(ctx,{...options.shapes,mode:'list'});
+    if(options.target==='listedShapes')throw new Error('旧版の一覧指定は廃止しました。Excel上で図形を選択してください。');
     return null;
   }
   async ranges(ctx) {
@@ -68,7 +52,11 @@ export class ExcelAdapter {
         }
         if(p.kind==='shapeSize') {
           const plan=resizePlan(shapes,v,options.resizeMode);
-          plan.forEach(update=>{const s=shapes.find(s=>s.id===update.id),locked=s.lockAspectRatio;s.lockAspectRatio=false;s.width=update.width;s.height=update.height;s.lockAspectRatio=locked;});
+          // Direct width/height setters do not require changing lockAspectRatio.
+          plan.forEach(update=>{const s=shapes.find(s=>s.id===update.id);s.width=update.width;s.height=update.height;});
+          await ctx.sync();
+          shapes.forEach(s=>s.load('width,height'));await ctx.sync();
+          if(plan.some(p=>{const s=shapes.find(s=>s.id===p.id);return Math.abs(s.width-p.width)>0.75||Math.abs(s.height-p.height)>0.75;}))throw new Error('Excelが指定サイズを反映しませんでした。図形の保護や種類を確認してください。');
         } else shapes.forEach(s=>{
           if(p.kind==='font')s.textFrame.textRange.font.name=v.name;
           if(p.kind==='fontSize')s.textFrame.textRange.font.size=v.size;
@@ -106,13 +94,8 @@ export class ExcelAdapter {
       return {target:isShape?'shapes':'cells',names:isShape?shapes.map(s=>s.name):[]};
     });
   }
-  async arrange(action,target) {
-    if(target?.mode!=='list')throw new Error('Excel上の複数図形選択は取得できないため、整列・サイズ統一は補助一覧で対象を指定してください。');
-    return this.run(async ctx=>{
-      const shapes=await this.shapes(ctx,target),plan=geometryPlan(shapes,action);
-      plan.forEach(update=>{const s=shapes.find(s=>s.id===update.id),locked=s.lockAspectRatio;const resizing='width'in update||'height'in update;if(resizing)s.lockAspectRatio=false;for(const k of ['left','top','width','height'])if(k in update)s[k]=update[k];if(resizing)s.lockAspectRatio=locked;});
-      await ctx.sync();
-    });
+  async arrange() {
+    throw new Error('現在のパネル方式では複数選択した図形全体を取得できないため、整列は未対応です。');
   }
   async capture(kind,options) {
     return this.run(async ctx=>{
